@@ -171,23 +171,21 @@ class AsarFile:
         self.seek(offset)
         return self.read(size, decode, encoding)
 
-    def extract_file(self, path, dst_dir=""):
+    def extract_file(self, path, dst=""):
         data = self.read_file(path, decode=False)
-        if not os.path.exists(dst_dir):
-            os.makedirs(dst_dir)
-        dst_path = os.path.join(dst_dir, os.path.split(path)[1])
+        if not os.path.exists(dst):
+            os.makedirs(dst)
+        dst_path = os.path.join(dst, os.path.split(path)[1])
         with open(dst_path, "wb") as fh:
             fh.write(data)
 
-    def extract(self, root="", dst_dir=""):
-        if not dst_dir:
-            dst_dir = "../asar_content"
+    def extract(self, root="", dst="asar_contents"):
         errors = list()
         for _root, files in self.walk_files(root):
-            dst = os.path.join(dst_dir, _root)
+            dst_dir = os.path.join(dst, _root)
             for name in files:
                 try:
-                    self.extract_file(os.path.join(_root, name), dst_dir=dst)
+                    self.extract_file(os.path.join(_root, name), dst=dst_dir)
                 except AsarFileHeaderError as e:
                     errors.append(e)
         return errors
