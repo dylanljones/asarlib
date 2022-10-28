@@ -29,6 +29,17 @@ with AsarFile("path/to/file.asar") as asar:
     ...
 ````
 
+The structure of the Asar archive can be printed as a tree:
+````python
+>>> asar.treestr()
+Asar()
+├─ file1.txt
+├─ file2.txt
+├─ folder
+│  ├─ file.txt
+...
+````
+
 The data of a file in the Asar archive can be read via
 ````python
 data = asar.read_file("folder/file.txt")
