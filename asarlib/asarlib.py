@@ -200,7 +200,7 @@ class AsarFile:
             name = root
             item = self.get_header(root, keep_files=True)
         else:
-            name = self.__str__() if _lvl == 0 else _name
+            name = self.__class__.__name__ if _lvl == 0 else _name
             item = _item or self.files
 
         vline = "│" + " " * max(indent - 1, 1)
