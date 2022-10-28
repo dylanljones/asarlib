@@ -39,6 +39,39 @@ class AsarFile:
     headers : dict
         The header data of the Asar archive as dictionary. Stores the byte position
         and size of the files contained in the Asar file content.
+
+    Examples
+    --------
+    Open an Asar archive and print out it's file tree structure:
+
+    >>> with AsarFile("file.asar") as asar
+    ...     print(asar.treestr())
+    AsarFile
+    ├─ file1.txt
+    ├─ file2.txt
+    ├─ folder
+    │  ├─ file.txt
+
+    Read the contents of a file in the archive:
+
+    >>> with AsarFile("file.asar") as asar
+    ...     data = asar.read_file("folder/file.txt")
+
+    Extract a file from the archive:
+
+    >>> dst_dir = "asar_contents"
+    >>> with AsarFile("file.asar") as asar
+    ...     asar.extract_file("folder/file.txt", dst=dst_dir)
+
+    Extract a directory from the archive:
+
+    >>> with AsarFile("file.asar") as asar
+    ...     asar.extract("folder", dst=dst_dir)
+
+    Extract all contents from the archive:
+
+    >>> with AsarFile("file.asar") as asar
+    ...     asar.extract(dst=dst_dir)
     """
 
     def __init__(self, file=None, mode="r", encoding=None):
@@ -179,6 +212,14 @@ class AsarFile:
         -------
         header_section : dict
             The header section of the Asar archive.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     header = asar.get_header("folder/file.txt")
+        >>> header
+        {'offset': 12345, 'size': 100}
+
         """
         if not path:
             return self.headers if keep_files else self.headers["files"]
@@ -213,6 +254,15 @@ class AsarFile:
             The paths of the directories contained in the directory ``root``.
         files : str
             The paths of the files contained in the directory ``root``.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     for root, dirnames, filenames in asar.walk():
+        ...         for name in dirnames:
+        ...             dir_path = os.path.join(root, name)
+        ...         for name in filenames:
+        ...             file_path = os.path.join(root, name)
         """
         root_item = self.get_header(root_path)
         parents = [(root_path, root_item)]
@@ -244,6 +294,13 @@ class AsarFile:
             The root path of the directory
         files : str
             The paths of the files contained in the directory ``root``.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     for root, filenames in asar.walk_files():
+        ...         for name in filenames:
+        ...             file_path = os.path.join(root, name)
         """
         for _root, _, files in self.walk(root_path):
             yield _root, files
@@ -261,6 +318,12 @@ class AsarFile:
         -------
         names : list[str]
             The names of the entries in ``root``.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     for name in asar.listdir("folder"):
+        ...         path = os.path.join("folder", name)
         """
         parent = self.get_header(root)
         return list(parent.keys())
@@ -283,6 +346,11 @@ class AsarFile:
         data : str or bytes
             The data read from the Asar file content. Either a string if ``decode=True``
             or the raw bytes.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     data = asar.read_file("folder/file.txt")
         """
         header = self.get_header(path)
         try:
@@ -308,6 +376,11 @@ class AsarFile:
         -------
         file_path : str
             The file path of the extracted file.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     asar.extract_file("folder/file.txt", dst="asar_contents")
         """
         data = self.read_file(path, decode=False)
         if not os.path.exists(dst):
@@ -333,6 +406,18 @@ class AsarFile:
         -------
         errors : list[Exception]
             A list of all exceptions that occured while extracting the files.
+
+        Examples
+        --------
+        Extract a directory from the archive:
+
+        >>> with AsarFile("file.asar") as asar
+        ...     asar.extract("folder", dst="asar_contents")
+
+        Extract all contents from the archive:
+
+        >>> with AsarFile("file.asar") as asar
+        ...     asar.extract(dst="asar_contents")
         """
         errors = list()
         for _root, files in self.walk_files(root):
@@ -377,6 +462,16 @@ class AsarFile:
         -------
         treestr : str
             The formatted output string representing the file tree structure.
+
+        Examples
+        --------
+        >>> with AsarFile("file.asar") as asar
+        ...     print(asar.treestr())
+        AsarFile
+        ├─ file1.txt
+        ├─ file2.txt
+        ├─ folder
+        │  ├─ file.txt
         """
         lvl = 0
         name = root or self.__class__.__name__
