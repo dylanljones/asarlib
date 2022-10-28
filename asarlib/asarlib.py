@@ -140,12 +140,46 @@ class AsarFile:
         return self._fh.tell() - self._content_offset
 
     def read(self, n=None, decode=True, encoding=None):
+        """Reads data from the Asar file content, starting after the header.
+
+        Parameters
+        ----------
+        n : int, optional
+            The number of bytes to read starting from the current file pointer position.
+            By default, all remaining bytes are read.
+        decode : bool, optional
+            If True, the bytes read from the file are decoded.
+        encoding : str, optional
+            Encoding used if ``decode=True``. If not passed the instance encoding is
+            used.
+
+        Returns
+        -------
+        data : str or bytes
+            The data read from the Asar file content. Either a string if ``decode=True``
+            or the raw bytes.
+        """
         data = self._fh.read(n)
         if decode:
             data = data.decode(encoding or self.encoding)
         return data
 
     def get_header(self, path="", keep_files=False):
+        """Returns the data of a header section in the Asar archive.
+
+        Parameters
+        ----------
+        path : str, optional
+            The path of the header in the archive. If not given the total header
+            is returned.
+        keep_files : bool, optional
+            If True, the 'files' dictionaries are kept in the output.
+
+        Returns
+        -------
+        header_section : dict
+            The header section of the Asar archive.
+        """
         if not path:
             return self.headers if keep_files else self.headers["files"]
         root, name = os.path.split(path)
@@ -162,9 +196,26 @@ class AsarFile:
             return item
         return item.get("files", item)
 
-    def walk(self, root=""):
-        root_item = self.get_header(root)
-        parents = [(root, root_item)]
+    def walk(self, root_path=""):
+        """Generates the file and directory names in a directory in the Asar archive.
+
+        Parameters
+        ----------
+        root_path : str, optional
+            The path of the directory in the archive. If not given the
+            archive root is used.
+
+        Yields
+        ------
+        root : str
+            The root path of the directory
+        dirs : str
+            The paths of the directories contained in the directory ``root``.
+        files : str
+            The paths of the files contained in the directory ``root``.
+        """
+        root_item = self.get_header(root_path)
+        parents = [(root_path, root_item)]
         while parents:
             new_parents = list()
             for root, parent in parents:
@@ -178,15 +229,61 @@ class AsarFile:
                 yield root, dirs, files
             parents = new_parents
 
-    def listdir(self, root=""):
-        parent = self.get_header(root)
-        yield from parent.keys()
+    def walk_files(self, root_path=""):
+        """enerates the file names in a directory in the Asar archive.
 
-    def walk_files(self, root=""):
-        for _root, _, files in self.walk(root):
+        Parameters
+        ----------
+        root_path : str, optional
+            The root path of the directory in the archive. If not given the
+            archive root is used.
+
+        Yields
+        ------
+        root : str
+            The root path of the directory
+        files : str
+            The paths of the files contained in the directory ``root``.
+        """
+        for _root, _, files in self.walk(root_path):
             yield _root, files
 
+    def listdir(self, root=""):
+        """Returns the names of the entries in a directory in the Asar archive.
+
+        Parameters
+        ----------
+        root : str, optional
+            The path of the directory in the archive. If not given the archive root is
+            used.
+
+        Returns
+        -------
+        names : list[str]
+            The names of the entries in ``root``.
+        """
+        parent = self.get_header(root)
+        return list(parent.keys())
+
     def read_file(self, path, decode=True, encoding=None):
+        """Reads the data of a file contained in the Asar archive.
+
+        Parameters
+        ----------
+        path : str
+            The path of the file in the archive to read.
+        decode : bool, optional
+            If True, the bytes read from the file are decoded.
+        encoding : str, optional
+            Encoding used if ``decode=True``. If not passed the instance encoding is
+            used.
+
+        Returns
+        -------
+        data : str or bytes
+            The data read from the Asar file content. Either a string if ``decode=True``
+            or the raw bytes.
+        """
         header = self.get_header(path)
         try:
             offset = int(header["offset"])
@@ -197,14 +294,46 @@ class AsarFile:
         return self.read(size, decode, encoding)
 
     def extract_file(self, path, dst=""):
+        """Extracts a file from the Asar archive and saves it in the given directory.
+
+        Parameters
+        ----------
+        path : str
+            The path of the file in the archive to extract.
+        dst : str, optional
+            The path of the directory on the system in which the file is saved.
+            If the directory does not exist it will be created.
+
+        Returns
+        -------
+        file_path : str
+            The file path of the extracted file.
+        """
         data = self.read_file(path, decode=False)
         if not os.path.exists(dst):
             os.makedirs(dst)
         dst_path = os.path.join(dst, os.path.split(path)[1])
         with open(dst_path, "wb") as fh:
             fh.write(data)
+        return dst_path
 
     def extract(self, root="", dst="asar_contents"):
+        """Extracts a directory from the archive and saves it in the given directory.
+
+        Parameters
+        ----------
+        root : str, optional
+            The path of the directory in the Asar archive to extract. If no path is
+            passed the whole archive will be extracted.
+        dst : str, optional
+            The path of the directory on the system in which the files are saved.
+            If the directory does not exist it will be created.
+
+        Returns
+        -------
+        errors : list[Exception]
+            A list of all exceptions that occured while extracting the files.
+        """
         errors = list()
         for _root, files in self.walk_files(root):
             dst_dir = os.path.join(dst, _root)
@@ -232,6 +361,23 @@ class AsarFile:
         return s
 
     def treestr(self, root="", indent=3, depth=None):
+        """Returns a formatted string of the file structure in the Asar archive.
+
+        Parameters
+        ----------
+        root : str, optional
+            The path of the directory in the Asar archive for which the file tree
+            structure is generated. If no path is passed the whole archive will be used.
+        indent : int, optional
+            The number of space charackters used as indentation.
+        depth : int, optional
+            The number of sub-folder levels to show. By default, all levels are used.
+
+        Returns
+        -------
+        treestr : str
+            The formatted output string representing the file tree structure.
+        """
         lvl = 0
         name = root or self.__class__.__name__
         item = self.get_header(root, keep_files=True)
