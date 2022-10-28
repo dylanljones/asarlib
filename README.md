@@ -32,7 +32,7 @@ with AsarFile("path/to/file.asar") as asar:
 The structure of the Asar archive can be printed as a tree:
 ````python
 >>> asar.treestr()
-Asar()
+AsarFile
 ├─ file1.txt
 ├─ file2.txt
 ├─ folder
