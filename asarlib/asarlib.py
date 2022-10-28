@@ -22,17 +22,37 @@ class AsarFileHeaderError(KeyError):
 
 
 class AsarFile:
-    def __init__(self, file=None, mode="rb", encoding=None):
+    """Electron Asar archive file handler.
+
+    Parameters
+    ----------
+    file : str, optional
+        The file path of the Asar file to open. If no path is given the file
+        has to be opened by calling ``open``.
+    mode : {'r', 'w'} str, optional
+        The mode for opening the Asar file. The default is 'r' (read).
+    encoding : str, optional
+        The encoding of the Asar archive. The default is platform specific.
+
+    Attributes
+    ----------
+    headers : dict
+        The header data of the Asar archive as dictionary. Stores the byte position
+        and size of the files contained in the Asar file content.
+    """
+
+    def __init__(self, file=None, mode="r", encoding=None):
         self._encoding = encoding or ENCODING
         self._content_offset = 0
         self._fh = None
 
-        self.files = dict()
+        self.headers = dict()
         if file is not None:
             self.open(file, mode)
 
     @property
     def encoding(self):
+        """str: The encoding of the Asar file."""
         return self._encoding
 
     def open(self, file, mode="r"):
@@ -42,17 +62,17 @@ class AsarFile:
         ----------
         file : str
             The file path of the Asar file to open.
-        mode : {'r', 'w'}
-            The mode for opening the Asar file.
+        mode : {'r', 'w'} str, optional
+            The mode for opening the Asar file. The default is 'r' (read).
         """
         # Open the file handler
         mode = mode.rstrip("b")
         if mode == "w":
-            raise NotImplementedError("Writing Asar files is not yet supported!")
+            raise NotImplementedError("Writing Asar headers is not yet supported!")
         self._fh = open(file, f"{mode}b")
 
         # Parse the Asar file tags:
-        # The Asar files use Google's pickle format which prefixes each field
+        # The Asar headers use Google's pickle format which prefixes each field
         # with its total length. The first 4 bytes is a 32-bit unsigned integer
         # _encoding the length of the ``len_header`` field (always 4).
         # The following 4 bytes is the 32-bit unsigned int ``len_header``, which
@@ -72,7 +92,7 @@ class AsarFile:
         header_data: bytes = self._fh.read(len_header)  # noqa
         if header_data.endswith(b"\x00"):
             header_data = header_data.rstrip(b"\x00")
-        self.files = json.loads(header_data.decode(self._encoding))
+        self.headers = json.loads(header_data.decode(self._encoding))
 
         # Store start of content (after header)
         self._content_offset = header_start + len_header
@@ -83,7 +103,7 @@ class AsarFile:
             self._fh.close()
             self._fh = None
             self._content_offset = 0
-            self.files.clear()
+            self.headers.clear()
 
     def __enter__(self):
         return self
@@ -108,6 +128,15 @@ class AsarFile:
         self._fh.seek(self._content_offset + int(pos))
 
     def tell(self):
+        """Returns the file pointer position in the Asar file content, after the header.
+
+        Returns
+        -------
+        pos : int
+            The position in the Asar content section. Note that this is not the actual
+            position in the Asar file, but the position in the content section
+            (after the header) in the Asar file.
+        """
         return self._fh.tell() - self._content_offset
 
     def read(self, n=None, decode=True, encoding=None):
@@ -116,18 +145,16 @@ class AsarFile:
             data = data.decode(encoding or self.encoding)
         return data
 
-    # ==================================================================================
-
     def get_header(self, path="", keep_files=False):
         if not path:
-            return self.files["files"]
+            return self.headers if keep_files else self.headers["files"]
         root, name = os.path.split(path)
         keys = [name]
         while root:
             root, name = os.path.split(root)
             keys.append(name)
         keys = keys[::-1]
-        parent = self.files["files"]
+        parent = self.headers["files"]
         for key in keys[:-1]:
             parent = parent[key]["files"]
         item = parent[keys[-1]]
@@ -159,8 +186,6 @@ class AsarFile:
         for _root, _, files in self.walk(root):
             yield _root, files
 
-    # ==================================================================================
-
     def read_file(self, path, decode=True, encoding=None):
         header = self.get_header(path)
         try:
@@ -190,29 +215,24 @@ class AsarFile:
                     errors.append(e)
         return errors
 
-    # ==================================================================================
-
     def __repr__(self):
         return f"{self.__class__.__name__}()"
 
-    def treestr(self, root="", indent=3, depth=None, _lvl=0, _name="", _item=None):
-        if root:
-            name = root
-            item = self.get_header(root, keep_files=True)
-        else:
-            name = self.__class__.__name__ if _lvl == 0 else _name
-            item = _item or self.files
-
+    def _treestr(self, lvl, name, item, indent, depth):
         vline = "│" + " " * max(indent - 1, 1)
         hline = "├" + "─" * max(indent - 2, 0) + " "
-        if _lvl == 0:
+        if lvl == 0:
             s = f"{name}\n"
         else:
-            s = vline * (_lvl - 1) + f"{hline}{_name}\n"
-        if depth is None or _lvl < depth:
+            s = vline * (lvl - 1) + f"{hline}{name}\n"
+        if depth is None or lvl < depth:
             if "files" in item:
                 for key, val in item["files"].items():
-                    s += self.treestr(
-                        indent=indent, depth=depth, _lvl=_lvl + 1, _name=key, _item=val
-                    )
+                    s += self._treestr(lvl + 1, key, val, indent, depth)
         return s
+
+    def treestr(self, root="", indent=3, depth=None):
+        lvl = 0
+        name = root or self.__class__.__name__
+        item = self.get_header(root, keep_files=True)
+        return self._treestr(lvl, name, item, indent, depth)

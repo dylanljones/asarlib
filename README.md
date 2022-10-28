@@ -9,7 +9,7 @@ See [electron/asar](https://github.com/electron/asar) for more information about
 ````commandline
 pip install git+https://github.com/dylanljones/asarlib.git@VERSION
 ````
-
+where ``VERSION`` is a release, tag or branch name.
 
 ## Usage
 
