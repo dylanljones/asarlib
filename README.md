@@ -53,5 +53,5 @@ asar.extract_file("folder/file.txt", dst="asar_contents")
 Additionally, the whole archive or a directory in it can be extracted:
 ````python
 asar.extract(dst="asar_contents")
-asar.extract("directory", dst="asar_contents")
+asar.extract("folder", dst="asar_contents")
 ````
