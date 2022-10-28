@@ -22,7 +22,6 @@ class AsarFileHeaderError(KeyError):
 
 
 class AsarFile:
-
     def __init__(self, file=None, mode="rb", encoding=None):
         self._encoding = encoding or ENCODING
         self._content_offset = 0
@@ -182,7 +181,7 @@ class AsarFile:
 
     def extract(self, root="", dst_dir=""):
         if not dst_dir:
-            dst_dir = "asar_content"
+            dst_dir = "../asar_content"
         errors = list()
         for _root, files in self.walk_files(root):
             dst = os.path.join(dst_dir, _root)
@@ -216,10 +215,6 @@ class AsarFile:
             if "files" in item:
                 for key, val in item["files"].items():
                     s += self.treestr(
-                        indent=indent,
-                        depth=depth,
-                        _lvl=_lvl + 1,
-                        _name=key,
-                        _item=val
+                        indent=indent, depth=depth, _lvl=_lvl + 1, _name=key, _item=val
                     )
         return s
