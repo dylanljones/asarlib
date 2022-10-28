@@ -9,7 +9,12 @@ import sys
 import json
 import struct
 
-ENCODING = "ANSI" if sys.platform == "win32" else "cp437"
+if sys.platform == "win32":
+    ENCODING = "ANSI"
+elif sys.platform == "darwin":
+    ENCODING = "cp437"
+else:
+    ENCODING = "utf-8"
 
 
 class AsarFileHeaderError(KeyError):
@@ -114,10 +119,10 @@ class AsarFile:
 
     # ==================================================================================
 
-    def get_header(self, *path, keep_files=False):
-        if not path or (len(path) == 1 and not path[0]):
+    def get_header(self, path="", keep_files=False):
+        if not path:
             return self.files["files"]
-        root, name = os.path.split(os.path.join(*path))
+        root, name = os.path.split(path)
         keys = [name]
         while root:
             root, name = os.path.split(root)
@@ -131,10 +136,9 @@ class AsarFile:
             return item
         return item.get("files", item)
 
-    def walk(self, *root):
-        root_path = os.path.join(*root) if root else ""
-        root_item = self.get_header(root_path)
-        parents = [(root_path, root_item)]
+    def walk(self, root=""):
+        root_item = self.get_header(root)
+        parents = [(root, root_item)]
         while parents:
             new_parents = list()
             for root, parent in parents:
@@ -148,19 +152,18 @@ class AsarFile:
                 yield root, dirs, files
             parents = new_parents
 
-    def listdir(self, *root):
-        root = os.path.join(*root) if root else ""
+    def listdir(self, root=""):
         parent = self.get_header(root)
         yield from parent.keys()
 
-    def walk_files(self, *root):
-        for _root, _, files in self.walk(*root):
+    def walk_files(self, root=""):
+        for _root, _, files in self.walk(root):
             yield _root, files
 
     # ==================================================================================
 
-    def read_file(self, *path, decode=True, encoding=None):
-        header = self.get_header(*path)
+    def read_file(self, path, decode=True, encoding=None):
+        header = self.get_header(path)
         try:
             offset = int(header["offset"])
             size = int(header["size"])
@@ -169,8 +172,7 @@ class AsarFile:
         self.seek(offset)
         return self.read(size, decode, encoding)
 
-    def extract_file(self, *path, dst_dir=""):
-        path = os.path.join(*path)
+    def extract_file(self, path, dst_dir=""):
         data = self.read_file(path, decode=False)
         if not os.path.exists(dst_dir):
             os.makedirs(dst_dir)
@@ -178,15 +180,15 @@ class AsarFile:
         with open(dst_path, "wb") as fh:
             fh.write(data)
 
-    def extract(self, *root, dst_dir=""):
+    def extract(self, root="", dst_dir=""):
         if not dst_dir:
             dst_dir = "asar_content"
         errors = list()
-        for _root, files in self.walk_files(*root):
+        for _root, files in self.walk_files(root):
             dst = os.path.join(dst_dir, _root)
             for name in files:
                 try:
-                    self.extract_file(_root, name, dst_dir=dst)
+                    self.extract_file(os.path.join(_root, name), dst_dir=dst)
                 except AsarFileHeaderError as e:
                     errors.append(e)
         return errors
@@ -196,10 +198,10 @@ class AsarFile:
     def __repr__(self):
         return f"{self.__class__.__name__}()"
 
-    def treestr(self, *root, indent=3, depth=None, _lvl=0, _name="", _item=None):
+    def treestr(self, root="", indent=3, depth=None, _lvl=0, _name="", _item=None):
         if root:
-            name = os.path.join(*root)
-            item = self.get_header(*root, keep_files=True)
+            name = root
+            item = self.get_header(root, keep_files=True)
         else:
             name = self.__str__() if _lvl == 0 else _name
             item = _item or self.files
